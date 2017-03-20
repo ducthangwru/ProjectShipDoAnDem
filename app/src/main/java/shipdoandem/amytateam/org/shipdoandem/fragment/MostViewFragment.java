@@ -2,6 +2,7 @@ package shipdoandem.amytateam.org.shipdoandem.fragment;
 
 
 import android.app.ProgressDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
@@ -10,7 +11,11 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.RelativeLayout;
 import android.widget.Toast;
+
+import com.baoyz.widget.PullRefreshLayout;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -18,6 +23,8 @@ import org.greenrobot.eventbus.Subscribe;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import shipdoandem.amytateam.org.shipdoandem.R;
+import shipdoandem.amytateam.org.shipdoandem.activities.FoodInformationActivity;
+import shipdoandem.amytateam.org.shipdoandem.activities.MainActivity;
 import shipdoandem.amytateam.org.shipdoandem.adapter.FoodAdapter;
 import shipdoandem.amytateam.org.shipdoandem.databases.DbContext;
 import shipdoandem.amytateam.org.shipdoandem.evenbus.GetAllFoodFaileEvent;
@@ -32,6 +39,15 @@ import static android.content.ContentValues.TAG;
 public class MostViewFragment extends Fragment {
     @BindView(R.id.rv_food)
     RecyclerView rvFood;
+
+//    @BindView(R.id.rl_most_view)
+//    RelativeLayout rlMostView;
+
+    @BindView(R.id.iv_oops)
+    ImageView ivOops;
+
+    @BindView(R.id.swipeRefreshLayout)
+    PullRefreshLayout layout;
 
     private ProgressDialog progress;
 
@@ -56,6 +72,35 @@ public class MostViewFragment extends Fragment {
         EventBus.getDefault().register(this);
         Log.e(TAG, String.format("setupUI: %s", DbContext.instance.allFoods().size()) );
 
+        loadAllFood();
+
+        // listen refresh event
+        layout.setOnRefreshListener(new PullRefreshLayout.OnRefreshListener() {
+            @Override
+            public void onRefresh() {
+                DbContext.instance.getAllFood();
+            }
+        });
+
+        ivOops.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                DbContext.instance.getAllFood();
+                layout.setRefreshing(true);
+            }
+        });
+
+        foodAdapter.setFootInfListenner(new FoodAdapter.FootInfListenner() {
+            @Override
+            public void onClick() {
+                Log.d(MostViewFragment.class.toString(), "onClick: ");
+                Intent intent = new Intent(getContext(),FoodInformationActivity.class);
+                getContext().startActivity(intent);
+            }
+        });
+    }
+
+    public void loadAllFood() {
         if(DbContext.instance.allFoods().size()==0) {
             DbContext.instance.getAllFood();
             progress = ProgressDialog.show(this.getContext(), "Xin chờ",
@@ -64,14 +109,26 @@ public class MostViewFragment extends Fragment {
         }else {
             rvFood.setAdapter(foodAdapter);
             rvFood.setLayoutManager(new GridLayoutManager(this.getContext(), 2));
+
         }
+        foodAdapter.setFootInfListenner(new FoodAdapter.FootInfListenner() {
+            @Override
+            public void onClick() {
+                Log.d(MostViewFragment.class.toString(), "onClick: ");
+                Intent intent = new Intent(getContext(),FoodInformationActivity.class);
+                getContext().startActivity(intent);
+            }
+        });
     }
+
 
     @Subscribe
     public void onLoadFoodSuccus(GetAllFoodSuccusEvent event) {
         progress.dismiss();
+        layout.setRefreshing(false);
         rvFood.setAdapter(foodAdapter);
         rvFood.setLayoutManager(new GridLayoutManager(this.getContext(), 2));
+        ivOops.setVisibility(View.INVISIBLE);
     }
 
     @Override
@@ -82,7 +139,13 @@ public class MostViewFragment extends Fragment {
 
     @Subscribe
     public void onLoadDataFailed(GetAllFoodFaileEvent event) {
-        Toast.makeText(this.getContext(), "Load thất bại, mạng mẽo như beep", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this.getContext(), "Lỗi kết nối. Kiểm tra đường truyền internet!", Toast.LENGTH_SHORT).show();
         progress.dismiss();
+        layout.setRefreshing(false);
+        if(DbContext.instance.allFoods().size() == 0)
+        {
+            ivOops.setVisibility(View.VISIBLE);
+        }
     }
+
 }
